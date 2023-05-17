@@ -1,5 +1,7 @@
 package lua
 
+import "fmt"
+
 const defaultArrayCap = 32
 const defaultHashCap = 32
 
@@ -153,14 +155,23 @@ func (tb *LTable) RawSet(key LValue, value LValue) {
 			}
 			index := int(v) - 1
 			alen := len(tb.array)
+
+			//扩容容易产生内存溢出set[10000000000]=123
+			//数组结构必须满足，首个索引必须从1开始且连续
+			// ex: set[1]=123, set[2]=123 //ok
+			// ex: set[257]=123; //fail
 			switch {
 			case index == alen:
+				//仅从原先大小增加1个
 				tb.array = append(tb.array, value)
 			case index > alen:
-				for i := 0; i < (index - alen); i++ {
-					tb.array = append(tb.array, LNil)
-				}
-				tb.array = append(tb.array, value)
+				// for i := 0; i < (index - alen); i++ {
+				// 	tb.array = append(tb.array, LNil)
+				// }
+				// tb.array = append(tb.array, value)
+
+				//切换使用map结构
+				tb.RawSetString(fmt.Sprint(int(v)), value)
 			case index < alen:
 				tb.array[index] = value
 			}
@@ -252,6 +263,13 @@ func (tb *LTable) RawGet(key LValue) LValue {
 	switch v := key.(type) {
 	case LNumber:
 		if isArrayKey(v) {
+			//尝试从MAP获取
+			if tb.strdict != nil {
+				if ret, ok := tb.strdict[fmt.Sprint(int(v))]; ok {
+					return ret
+				}
+				//再从arr中获取
+			}
 			if tb.array == nil {
 				return LNil
 			}
