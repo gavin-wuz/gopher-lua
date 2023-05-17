@@ -150,6 +150,11 @@ func (tb *LTable) RawSet(key LValue, value LValue) {
 	switch v := key.(type) {
 	case LNumber:
 		if isArrayKey(v) {
+			if tb.strdict != nil {
+				//已经选择字典类型
+				tb.RawSetString(fmt.Sprint(int(v)), value)
+				return
+			}
 			if tb.array == nil {
 				tb.array = make([]LValue, 0, defaultArrayCap)
 			}
