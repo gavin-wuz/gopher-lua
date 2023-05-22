@@ -218,6 +218,11 @@ type LState struct {
 	hasErrorFunc bool
 	mainLoop     func(*LState, *callFrame)
 	ctx          context.Context
+	lhook        Hooker //fix sethook line call 每进入新的一行时调用钩子
+	chook        Hooker //fix sethook op_call 每调用一个函数时调用钩子
+	rhook        Hooker //fix sethook op_return 每从一个函数内返回时调用钩子
+	cthook       Hooker //fix sethook count 每调用一个函数需要计数时调用钩子
+	prevline     int    //fix sethook 上一行号
 }
 
 func (ls *LState) String() string                     { return fmt.Sprintf("thread: %p", ls) }
