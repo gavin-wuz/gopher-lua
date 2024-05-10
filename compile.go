@@ -10,7 +10,7 @@ import (
 
 /* internal constants & structs  {{{ */
 
-const maxRegisters = 200
+const maxRegisters = 500 //todo max var of pre lua file, default 200
 
 type expContextType int
 
