@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/vmihailenco/msgpack/v5"
 	"github.com/yuin/gopher-lua/pm"
 )
 
@@ -82,9 +83,79 @@ func strChar(L *LState) int {
 	return 1
 }
 
+type lvalueContainer struct {
+	Type   LValueType
+	String string
+	Number float64
+}
+
+type functionProtoContainer struct {
+	SourceName         string
+	LineDefined        int
+	LastLineDefined    int
+	NumUpvalues        uint8
+	NumParameters      uint8
+	IsVarArg           uint8
+	NumUsedRegisters   uint8
+	Code               []uint32
+	Constants          []interface{}
+	FunctionPrototypes []*functionProtoContainer
+
+	DbgSourcePositions []int
+	DbgLocals          []*DbgLocalInfo
+	DbgCalls           []DbgCall
+	DbgUpvalues        []string
+}
+
+const dumpSignature = "\033GoL"
+
+func proto2container(proto *FunctionProto) *functionProtoContainer {
+	protos := []*functionProtoContainer{}
+	for _, c := range proto.FunctionPrototypes {
+		protos = append(protos, proto2container(c))
+	}
+	constants := []interface{}{}
+	for _, c := range proto.Constants {
+		constants = append(constants, c)
+	}
+
+	return &functionProtoContainer{
+		SourceName:         proto.SourceName,
+		LineDefined:        proto.LineDefined,
+		LastLineDefined:    proto.LastLineDefined,
+		NumUpvalues:        proto.NumUpvalues,
+		NumParameters:      proto.NumParameters,
+		IsVarArg:           proto.IsVarArg,
+		NumUsedRegisters:   proto.NumUsedRegisters,
+		Code:               proto.Code,
+		Constants:          constants,
+		FunctionPrototypes: protos,
+		DbgSourcePositions: proto.DbgSourcePositions,
+		DbgLocals:          proto.DbgLocals,
+		DbgCalls:           proto.DbgCalls,
+		DbgUpvalues:        proto.DbgUpvalues,
+	}
+}
+
+func MarshalProto(proto *FunctionProto) ([]byte, error) {
+	buf, err := msgpack.Marshal(proto2container(proto))
+	if err != nil {
+		return nil, err
+	}
+	return append(([]byte)(dumpSignature), buf...), nil
+}
+
 func strDump(L *LState) int {
-	L.RaiseError("GopherLua does not support the string.dump")
-	return 0
+	f := L.CheckFunction(1)
+	if f.IsG {
+		L.RaiseError("function must be a lua function")
+	}
+	buf, err := MarshalProto(f.Proto)
+	if err != nil {
+		L.RaiseError(err.Error())
+	}
+	L.Push(LString(buf))
+	return 1
 }
 
 func strFind(L *LState) int {

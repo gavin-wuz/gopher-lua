@@ -5,6 +5,7 @@ package lua
 ////////////////////////////////////////////////////////
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/vmihailenco/msgpack/v5"
 	"github.com/yuin/gopher-lua/parse"
 )
 
@@ -1972,15 +1974,88 @@ func (ls *LState) Register(name string, fn LGFunction) {
 
 /* load and function call operations {{{ */
 
-func (ls *LState) Load(reader io.Reader, name string) (*LFunction, error) {
-	chunk, err := parse.Parse(reader, name)
+func container2proto(container *functionProtoContainer) *FunctionProto {
+	protos := []*FunctionProto{}
+	for _, c := range container.FunctionPrototypes {
+		protos = append(protos, container2proto(c))
+	}
+	constants := []LValue{}
+	stringConstants := []string{}
+	for _, c := range container.Constants {
+		if s, ok := c.(string); ok {
+			constants = append(constants, LString(s))
+			stringConstants = append(stringConstants, s)
+		} else {
+			constants = append(constants, LNumber(c.(float64)))
+		}
+	}
+
+	return &FunctionProto{
+		SourceName:         container.SourceName,
+		LineDefined:        container.LineDefined,
+		LastLineDefined:    container.LastLineDefined,
+		NumUpvalues:        container.NumUpvalues,
+		NumParameters:      container.NumParameters,
+		IsVarArg:           container.IsVarArg,
+		NumUsedRegisters:   container.NumUsedRegisters,
+		Code:               container.Code,
+		Constants:          constants,
+		FunctionPrototypes: protos,
+		DbgSourcePositions: container.DbgSourcePositions,
+		DbgLocals:          container.DbgLocals,
+		DbgCalls:           container.DbgCalls,
+		DbgUpvalues:        container.DbgUpvalues,
+		stringConstants:    stringConstants,
+	}
+
+}
+
+func Load(reader io.Reader, name string) (*FunctionProto, error, bool) {
+	var b *bufio.Reader
+	if v, ok := reader.(*bufio.Reader); ok {
+		b = v
+	} else {
+		b = bufio.NewReader(reader)
+	}
+
+	if sbuf, err := b.Peek(4); err == nil {
+		if string(sbuf) == dumpSignature {
+			b.Discard(4)
+			buf, err := io.ReadAll(b)
+			if err != nil {
+				return nil, err, true
+			}
+			var container functionProtoContainer
+			if err := msgpack.Unmarshal(buf, &container); err != nil {
+				return nil, err, true
+			}
+
+			return container2proto(&container), nil, false
+		}
+	}
+
+	chunk, err := parse.Parse(b, name)
 	if err != nil {
-		return nil, newApiErrorE(ApiErrorSyntax, err)
+		return nil, newApiErrorE(ApiErrorSyntax, err), false
 	}
 	proto, err := Compile(chunk, name)
 	if err != nil {
-		return nil, newApiErrorE(ApiErrorSyntax, err)
+		return nil, newApiErrorE(ApiErrorSyntax, err), false
 	}
+	return proto, nil, false
+}
+
+func (ls *LState) Load(reader io.Reader, name string) (*LFunction, error) {
+	proto, err, isRaise := Load(reader, name)
+	if isRaise {
+		ls.RaiseError(err.Error())
+		err = nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	return newLFunctionL(proto, ls.currentEnv(), 0), nil
 }
 
