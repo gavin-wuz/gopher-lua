@@ -1987,6 +1987,7 @@ func container2proto(container *functionProtoContainer) *FunctionProto {
 			stringConstants = append(stringConstants, s)
 		} else {
 			constants = append(constants, LNumber(c.(float64)))
+			stringConstants = append(stringConstants, "")
 		}
 	}
 
