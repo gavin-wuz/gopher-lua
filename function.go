@@ -179,7 +179,8 @@ func (fn *LFunction) LocalName(regno, pc int) (string, bool) {
 		return "", false
 	}
 	p := fn.Proto
-	for i := 0; i < len(p.DbgLocals) && p.DbgLocals[i].StartPc < pc; i++ {
+	//fix:优化DEBUG断点调试时查不到变量的值，改为<=
+	for i := 0; i < len(p.DbgLocals) && p.DbgLocals[i].StartPc <= pc; i++ {
 		if pc < p.DbgLocals[i].EndPc {
 			regno--
 			if regno == 0 {
