@@ -1646,22 +1646,40 @@ func (ls *LState) SetUpvalue(fn *LFunction, no int, lv LValue) string {
 // fix debug.sethook
 func (ls *LState) SetHook(callback *LFunction, event string, count int) error {
 	frame := ls.stack.At(0)
-	if count > 0 {
-		ls.cthook = newCTHook(callback, count)
+	// fix: callback is nil to clean hook
+	ls.cthook = nil
+	ls.lhook = nil
+	ls.chook = nil
+	ls.rhook = nil
+	ls.temphook = nil
+	if callback == nil {
+		return nil
 	}
+	var iset bool
 	for _, c := range event {
 		switch c {
 		case 'l':
-			ls.lhook = newLHook(callback, frame.Fn.Proto.DbgSourcePositions[frame.Pc-1])
+			if count == 1 {
+				ls.lhook = newLHook(callback, frame.Fn.Proto.DbgSourcePositions[frame.Pc-1])
+			}
+			if count > 1 {
+				ls.cthook = newCTHook(callback, count)
+			}
+			iset = true
 		case 'c':
 			ls.chook = newCHook(callback)
+			iset = true
 		case 'r':
 			ls.rhook = newRHook(callback)
+			iset = true
 		default:
 			return newApiErrorS(ApiErrorRun, fmt.Sprintf("invalid hook event: %c", c))
 		}
 	}
-	return nil
+	if iset {
+		ls.temphook = &TempHooker{callback, event, count}
+	}
+		return nil
 }
 
 /* }}} */

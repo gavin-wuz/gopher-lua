@@ -22,7 +22,8 @@ var debugFuncs = map[string]LGFunction{
 	"setmetatable": debugSetMetatable,
 	"setupvalue":   debugSetUpvalue,
 	"traceback":    debugTraceback,
-	"sethook":      debugSetHook,//注册一个方法
+	"sethook":      debugSetHook, //注册一个方法
+	"gethook":      debugGetHook,
 }
 
 func debugGetFEnv(L *LState) int {
@@ -30,15 +31,47 @@ func debugGetFEnv(L *LState) int {
 	return 1
 }
 
+// fix:debug.gethook
+func debugGetHook(L *LState) int {
+	if L.temphook != nil {
+		L.Push(L.temphook.callback)
+		L.Push(LString(L.temphook.event))
+		L.Push(LNumber(L.temphook.count))
+		return 3
+	}
+
+	L.Push(LNil)
+	return 1
+}
+
 // fix:debug.sethook
 func debugSetHook(L *LState) int {
-	L.CheckTypes(1, LTFunction)
-	L.CheckTypes(2, LTString)
-	L.CheckTypes(3, LTNumber)
+	//fix: 取最近的hook, 参数至少1个情况
+	np := 0
+	if L.Get(1).Type() != LTNil {
+		L.CheckTypes(1, LTFunction)
+		np++
+	}
+
+	if L.Get(2).Type() != LTNil {
+		L.CheckTypes(2, LTString)
+		np++
+	}
+
+	if L.Get(3).Type() != LTNil {
+		L.CheckTypes(3, LTNumber)
+		np++
+	}
+	
 	callbackArg := L.OptFunction(1, nil)
-	eventArg := L.OptString(2, "")
-	countArg := L.OptInt(3, 0)
-	L.Pop(3)
+	//fix 修改默认行级调用
+	eventArg := L.OptString(2, "l")
+	countArg := L.OptInt(3, 1)
+
+	if np > 0 {
+		L.Pop(np)
+	}
+	
 	_ = L.SetHook(callbackArg, eventArg, countArg)
 	return 0
 }
