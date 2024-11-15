@@ -7,7 +7,7 @@ type Hooker interface {
 	String() string
 }
 
-//fix: 记录最后设置的hook
+// fix: last save hook
 type TempHooker struct {
 	callback *LFunction
 	event    string
