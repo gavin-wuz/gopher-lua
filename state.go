@@ -1815,28 +1815,31 @@ func (ls *LState) SetHook(callback *LFunction, event string, count int) error {
 		return nil
 	}
 	var iset bool
+	var callev strings.Builder
+	if count > 0 {
+		ls.cthook = newCTHook(callback, count)
+		iset = true
+	}
 	for _, c := range event {
 		switch c {
 		case 'l':
-			if count == 1 {
-				ls.lhook = newLHook(callback, frame.Fn.Proto.DbgSourcePositions[frame.Pc-1])
-			}
-			if count > 1 {
-				ls.cthook = newCTHook(callback, count)
-			}
+			ls.lhook = newLHook(callback, frame.Fn.Proto.DbgSourcePositions[frame.Pc-1])
+			callev.WriteRune('l')
 			iset = true
 		case 'c':
 			ls.chook = newCHook(callback)
+			callev.WriteRune('c')
 			iset = true
 		case 'r':
 			ls.rhook = newRHook(callback)
+			callev.WriteRune('r')
 			iset = true
 		default:
 			return newApiErrorS(ApiErrorRun, fmt.Sprintf("invalid hook event: %c", c))
 		}
 	}
 	if iset {
-		ls.temphook = &TempHooker{callback, event, count}
+		ls.temphook = &TempHooker{callback, callev.String(), count}
 	}
 	
 	return nil

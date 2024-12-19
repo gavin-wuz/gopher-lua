@@ -62,16 +62,16 @@ func debugSetHook(L *LState) int {
 		L.CheckTypes(3, LTNumber)
 		np++
 	}
-	
+
 	callbackArg := L.OptFunction(1, nil)
 	//fix 修改默认行级调用
 	eventArg := L.OptString(2, "l")
-	countArg := L.OptInt(3, 1)
+	countArg := L.OptInt(3, 0)
 
 	if np > 0 {
 		L.Pop(np)
 	}
-	
+
 	_ = L.SetHook(callbackArg, eventArg, countArg)
 	return 0
 }
